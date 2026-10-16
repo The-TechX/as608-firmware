@@ -18,7 +18,11 @@ void AccessService::tick() {
       // This confirms biometric recognition only, NOT access authorization.
       indicator_.identificationSucceeded();
       if (integration_) {
-        const AccessRequest request{sequence, match.id, match.confidence, match.timestampMs};
+        AccessRequest request;
+        request.sequence = sequence;
+        request.fingerprintId = match.id;
+        request.confidence = match.confidence;
+        request.timestampMs = match.timestampMs;
         integration_->submit(request);
       }
     } else {
