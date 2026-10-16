@@ -36,7 +36,9 @@ if ($OpenSslPath) {
             (Join-Path $env:ProgramFiles "Git\\usr\\bin\\openssl.exe"),
             (Join-Path $env:ProgramFiles "Git\\mingw64\\bin\\openssl.exe"),
             (Join-Path ${env:ProgramFiles(x86)} "Git\\usr\\bin\\openssl.exe"),
-            (Join-Path $env:LOCALAPPDATA "Programs\\Git\\usr\\bin\\openssl.exe")
+            (Join-Path $env:LOCALAPPDATA "Programs\\Git\\usr\\bin\\openssl.exe"),
+            (Join-Path $HOME "scoop\\apps\\git\\current\\usr\\bin\\openssl.exe"),
+            (Join-Path $HOME "scoop\\apps\\git\\current\\mingw64\\bin\\openssl.exe")
         )
         $OpenSslExe = $candidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
     }
