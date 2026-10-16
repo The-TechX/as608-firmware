@@ -19,10 +19,10 @@ void HttpApi::begin() {
     sendJson(200, body);
   });
   server_.on("/api/v1/fingerprint/last", HTTP_GET, [this]() {
-    const auto& result = device_.runtime().lastResult();
+    const auto& result = device_.fingerprintService().lastResult();
     JsonDocument doc;
     doc["available"] = result.available;
-    doc["busy"] = device_.runtime().busy();
+    doc["busy"] = device_.fingerprintService().busy();
     if (result.available) {
       doc["matched"] = result.matched;
       doc["fingerprint_id"] = result.matched ? result.id : 0;
