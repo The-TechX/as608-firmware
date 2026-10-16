@@ -4,7 +4,7 @@ param(
     [string]$OpenSslPath = ""
 )
 $ErrorActionPreference = "Stop"
-Set-Location $PSScriptRoot
+Push-Location $PSScriptRoot
 
 if (-not $HostIp) {
     $ips = @(Get-NetIPAddress -AddressFamily IPv4 |
@@ -64,3 +64,4 @@ $env:WSS_PORT = "$Port"
 if ($LASTEXITCODE -ne 0) { throw "Docker Compose failed" }
 Write-Host "Mock gateway: wss://$($HostIp):$Port"
 Write-Host "Run tests: docker compose run --build --rm integration-tests"
+Pop-Location
