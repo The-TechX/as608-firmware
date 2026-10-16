@@ -17,7 +17,7 @@ Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -like '192.16
 docker compose run --build --rm integration-tests
 ```
 
-The script generates a self-signed certificate containing the selected IP as an IP subject alternative name, if certificates do not already exist, then runs Docker Compose. It does not require changing the host IP in source files. If you change the IP, remove both files in `certs` before running the script again.
+The script generates a self-signed development trust anchor with explicit X.509 CA, key usage, server authentication and IP SAN extensions if certificates do not already exist, then runs Docker Compose. It does not require changing the host IP in source files. If you change the IP, remove both files in `certs` before running the script again.
 
 If PowerShell blocks script execution, run `powershell -ExecutionPolicy Bypass -File .\start.ps1 -HostIp 192.168.1.50` after reviewing the script. The script checks PATH and common Git for Windows and Scoop paths. You may specify `-OpenSslPath` if necessary.
 
@@ -33,7 +33,10 @@ HOST_IP=192.168.1.10 # replace with Docker host's reachable LAN IP
 openssl req -x509 -newkey rsa:2048 -nodes -days 30 \
   -keyout certs/server.key -out certs/server.crt \
   -subj "/CN=mock-gateway" \
-  -addext "subjectAltName=IP:${HOST_IP},DNS:localhost"
+  -addext "subjectAltName=IP:${HOST_IP},DNS:localhost" \
+  -addext "basicConstraints=critical,CA:TRUE" \
+  -addext "keyUsage=critical,keyCertSign,cRLSign,digitalSignature,keyEncipherment" \
+  -addext "extendedKeyUsage=serverAuth"
 chmod 644 certs/server.crt
 chmod 644 certs/server.key
 docker compose up --build -d
