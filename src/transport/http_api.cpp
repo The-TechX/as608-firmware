@@ -18,6 +18,34 @@ void HttpApi::begin() {
     serializeJson(doc, body);
     sendJson(200, body);
   });
+  server_.on("/api/v1/sensor", HTTP_GET, [this]() {
+    auto& sensor = device_.fingerprint();
+    JsonDocument doc;
+    doc["online"] = sensor.online();
+    doc["last_error"] = sensor.lastError();
+    if (sensor.online()) {
+      doc["capacity"] = sensor.capacity();
+      doc["template_count"] = sensor.templateCount();
+      doc["security_level"] = sensor.securityLevel();
+      doc["device_address"] = sensor.deviceAddress();
+      doc["packet_length"] = sensor.packetLength();
+      doc["baud_rate"] = sensor.baudRate();
+    }
+    String body;
+    serializeJson(doc, body);
+    sendJson(sensor.online() ? 200 : 503, body);
+  });
+  server_.on("/api/v1/sensor/refresh", HTTP_POST, [this]() {
+    auto& sensor = device_.fingerprint();
+    bool ok = sensor.refresh();
+    JsonDocument doc;
+    doc["ok"] = ok;
+    doc["last_error"] = sensor.lastError();
+    doc["template_count"] = sensor.templateCount();
+    String body;
+    serializeJson(doc, body);
+    sendJson(ok ? 200 : 503, body);
+  });
   server_.on("/api/v1/wifi", HTTP_GET, [this]() {
     auto& wifi = device_.wifi();
     JsonDocument doc;
