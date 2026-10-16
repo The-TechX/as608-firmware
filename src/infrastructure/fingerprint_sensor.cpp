@@ -50,3 +50,19 @@ uint16_t FingerprintSensor::securityLevel() const { return securityLevel_; }
 uint32_t FingerprintSensor::deviceAddress() const { return deviceAddress_; }
 uint16_t FingerprintSensor::packetLength() const { return packetLength_; }
 uint16_t FingerprintSensor::baudRate() const { return baudRate_; }
+
+uint8_t FingerprintSensor::identify(uint16_t& id, uint16_t& confidence) {
+  id = 0;
+  confidence = 0;
+  if (!online_) return FINGERPRINT_PACKETRECIEVEERR;
+  uint8_t result = sensor_.getImage();
+  if (result != FINGERPRINT_OK) return result;
+  result = sensor_.image2Tz(1);
+  if (result != FINGERPRINT_OK) return result;
+  result = sensor_.fingerFastSearch();
+  if (result == FINGERPRINT_OK) {
+    id = sensor_.fingerID;
+    confidence = sensor_.confidence;
+  }
+  return result;
+}

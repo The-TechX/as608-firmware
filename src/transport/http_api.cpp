@@ -18,6 +18,23 @@ void HttpApi::begin() {
     serializeJson(doc, body);
     sendJson(200, body);
   });
+  server_.on("/api/v1/fingerprint/last", HTTP_GET, [this]() {
+    const auto& result = device_.runtime().lastResult();
+    JsonDocument doc;
+    doc["available"] = result.available;
+    doc["busy"] = device_.runtime().busy();
+    if (result.available) {
+      doc["matched"] = result.matched;
+      doc["fingerprint_id"] = result.matched ? result.id : 0;
+      doc["confidence"] = result.matched ? result.confidence : 0;
+      doc["error"] = result.error;
+      doc["elapsed_ms"] = result.elapsedMs;
+      doc["timestamp_ms"] = result.timestampMs;
+    }
+    String body;
+    serializeJson(doc, body);
+    sendJson(200, body);
+  });
   server_.on("/api/v1/sensor", HTTP_GET, [this]() {
     auto& sensor = device_.fingerprint();
     JsonDocument doc;

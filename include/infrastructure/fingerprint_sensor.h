@@ -14,6 +14,7 @@ class FingerprintSensor {
   uint16_t packetLength() const;
   uint16_t baudRate() const;
   bool refresh();
+  uint8_t identify(uint16_t& id, uint16_t& confidence);
  private:
   HardwareSerial serial_{2};
   Adafruit_Fingerprint sensor_{&serial_};
