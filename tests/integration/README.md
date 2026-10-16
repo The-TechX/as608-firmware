@@ -4,7 +4,7 @@ This Docker service exposes **WSS** on TCP 8765 to the LAN, using a development 
 
 ## Windows PowerShell + Docker Desktop
 
-Open PowerShell in `tests/integration`. Ensure Docker Desktop is running, and OpenSSL and Python are installed.
+Open PowerShell in `tests/integration`. Ensure Docker Desktop is running and OpenSSL is available (including from Scoop Git). Python is not required on Windows.
 
 ```powershell
 # Find your LAN IPv4 (Wi-Fi or Ethernet):
@@ -13,14 +13,13 @@ Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -like '192.16
 # Replace with the Windows host IPv4 reachable by your ESP32:
 .\start.ps1 -HostIp 192.168.1.50
 
-# Install Python test dependency and execute tests:
-python -m pip install -r mock_gateway/requirements.txt
-python -m unittest -v test_wss.py
+# Run integration tests entirely inside a temporary Docker container:
+docker compose run --build --rm integration-tests
 ```
 
 The script generates a self-signed certificate containing the selected IP as an IP subject alternative name, if certificates do not already exist, then runs Docker Compose. It does not require changing the host IP in source files. If you change the IP, remove both files in `certs` before running the script again.
 
-If PowerShell blocks script execution, run `powershell -ExecutionPolicy Bypass -File .\start.ps1 -HostIp 192.168.1.50` after reviewing the script. OpenSSL must be on PATH; Git for Windows often includes it under `C:\Program Files\Git\usr\bin\openssl.exe`, but availability varies.
+If PowerShell blocks script execution, run `powershell -ExecutionPolicy Bypass -File .\start.ps1 -HostIp 192.168.1.50` after reviewing the script. The script checks PATH and common Git for Windows and Scoop paths. You may specify `-OpenSslPath` if necessary.
 
 If multiple interfaces are detected, the script requires an explicit `-HostIp`. It does not alter Windows Firewall; allow inbound TCP 8765 only on the private LAN if necessary.
 
@@ -41,6 +40,8 @@ docker compose up --build -d
 ```
 
 ## Connection and testing
+
+Run `docker compose run --build --rm integration-tests` after the mock gateway is running. The test runner shares the gateway network namespace so `wss://localhost:8765` matches the certificate SAN. Dependencies are installed in the container image only; no Windows Python packages are installed.
 
 The mock listens on `wss://<docker-host-LAN-IP>:8765`. The ESP32 must reach the Windows/Linux Docker host, not the container's internal IP. The server certificate must match the IP/DNS name used, and clients must explicitly trust the development certificate. The Python test trusts `certs/server.crt`; ESP32 certificate validation is not yet implemented.
 
