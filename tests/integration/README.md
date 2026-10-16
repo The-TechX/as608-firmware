@@ -33,7 +33,7 @@ pio run -e esp32dev -t upload
 pio device monitor -b 115200
 ```
 
-`start.ps1` changes its working directory to `tests/integration` internally, generates the test certificate if absent, and starts Docker Compose. `configure-wss.ps1` generates the **ignored local** header `include/transport/wss_local_config.h` containing the gateway IP, port and **public certificate only**. Re-run the configuration script and reflash after any certificate rotation. Do not commit generated credentials, certificates or device-specific headers.
+`start.ps1` temporarily enters `tests/integration`, generates the test certificate if absent, starts Docker Compose, and restores the original working directory when it succeeds. `configure-wss.ps1` generates the **ignored local** header `include/transport/wss_local_config.h` containing the gateway IP, port and **public certificate only**. Re-run the configuration script and reflash after any certificate rotation. Do not commit generated credentials, certificates or device-specific headers.
 
 The development certificate contains `IP:<host-ip>`, `DNS:<host-ip>`, and `DNS:localhost` subject alternative names. The DNS-form IP entry is required by the mbedTLS hostname-validation behavior observed with this ESP32 toolchain; no LAN DNS or mDNS configuration is required. The server key never goes into the firmware.
 
