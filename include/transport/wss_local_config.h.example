@@ -1,0 +1,10 @@
+#pragma once
+// Copy to wss_local_config.h using scripts/configure-wss.ps1.
+// This is a TEMPLATE. Never disable TLS verification for testing.
+static constexpr char kWssHost[] = "192.168.1.66";
+static constexpr uint16_t kWssPort = 8765;
+static const char kWssCaCert[] = R"PEM(
+-----BEGIN CERTIFICATE-----
+REPLACE_WITH_CONTENTS_OF_tests/integration/certs/server.crt
+-----END CERTIFICATE-----
+)PEM";

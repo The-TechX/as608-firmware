@@ -1,0 +1,23 @@
+services:
+  mock-gateway:
+    build: ./mock_gateway
+    ports:
+      - "0.0.0.0:${WSS_PORT:-8765}:8765"
+    volumes:
+      - ./certs:/certs:ro
+    restart: unless-stopped
+
+  integration-tests:
+    build: ./mock_gateway
+    profiles: ["test"]
+    depends_on:
+      - mock-gateway
+    network_mode: "service:mock-gateway"
+    working_dir: /tests
+    volumes:
+      - ./test_wss.py:/tests/test_wss.py:ro
+      - ./certs:/tests/certs:ro
+    environment:
+      WSS_URL: wss://localhost:8765
+      WSS_CA_CERT: certs/server.crt
+    command: ["python", "-m", "unittest", "-v", "test_wss.py"]
