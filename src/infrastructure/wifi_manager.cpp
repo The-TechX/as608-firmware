@@ -4,9 +4,42 @@ namespace {
 constexpr char kApSsid[] = "AS608-Setup";
 constexpr char kApPassword[] = "AS608setup!26";
 constexpr uint32_t kTimeoutMs = 15000;
+const char* reasonName(uint8_t reason) {
+  switch (reason) {
+    case 15: return "4WAY_HANDSHAKE_TIMEOUT";
+    case 200: return "BEACON_TIMEOUT";
+    case 201: return "NO_AP_FOUND";
+    case 202: return "AUTH_FAIL";
+    case 203: return "ASSOC_FAIL";
+    case 204: return "HANDSHAKE_TIMEOUT";
+    default: return "OTHER";
+  }
+}
 }
 WifiManager::WifiManager(ConfigStore& store) : store_(store) {}
 void WifiManager::begin() {
+  WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info) {
+    switch (event) {
+      case ARDUINO_EVENT_WIFI_STA_START:
+        Serial.println("[wifi] STA started");
+        break;
+      case ARDUINO_EVENT_WIFI_STA_CONNECTED:
+        Serial.printf("[wifi] STA associated; channel=%u\n", info.wifi_sta_connected.channel);
+        break;
+      case ARDUINO_EVENT_WIFI_STA_GOT_IP:
+        Serial.println("[wifi] STA got IP");
+        break;
+      case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
+        Serial.printf("[wifi] STA disconnected: reason=%u (%s)\n",
+                      info.wifi_sta_disconnected.reason,
+                      reasonName(info.wifi_sta_disconnected.reason));
+        break;
+      case ARDUINO_EVENT_WIFI_STA_STOP:
+        Serial.println("[wifi] STA stopped");
+        break;
+      default: break;
+    }
+  });
   ssid_ = store_.ssid();
   password_ = store_.password();
   if (ssid_.isEmpty()) startAp(); else connect();
@@ -25,6 +58,8 @@ void WifiManager::startAp() {
 void WifiManager::connect() {
   if (ssid_.isEmpty()) { startAp(); return; }
   WiFi.mode(apActive_ ? WIFI_AP_STA : WIFI_STA);
+  Serial.printf("[wifi] Connecting: SSID='%s', AP active=%s\n",
+                ssid_.c_str(), apActive_ ? "yes" : "no");
   WiFi.begin(ssid_.c_str(), password_.c_str());
   started_ = millis();
   connecting_ = true;
@@ -55,6 +90,9 @@ void WifiManager::tick() {
   } else if (millis() - started_ >= kTimeoutMs) {
     connecting_ = false;
     startAp();
+    Serial.printf("[wifi] Timeout: status=%d, elapsed=%lu ms\n",
+                  static_cast<int>(WiFi.status()),
+                  static_cast<unsigned long>(millis() - started_));
     Serial.println("STA timeout; recovery AP active");
   }
 }
