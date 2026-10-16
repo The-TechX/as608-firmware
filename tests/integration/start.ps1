@@ -1,6 +1,7 @@
 param(
     [string]$HostIp = "",
-    [int]$Port = 8765
+    [int]$Port = 8765,
+    [string]$OpenSslPath = ""
 )
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
@@ -20,18 +21,39 @@ if (-not [System.Net.IPAddress]::TryParse($HostIp, [ref]$parsedIp) -or
     $parsedIp.AddressFamily -ne [System.Net.Sockets.AddressFamily]::InterNetwork) {
     throw "HostIp must be a valid IPv4 address"
 }
-if (-not (Get-Command openssl -ErrorAction SilentlyContinue)) {
-    throw "OpenSSL not found in PATH. Install OpenSSL or run this script in an environment with openssl."
+# Resolve OpenSSL from an explicit path, PATH, or common Git for Windows locations.
+if ($OpenSslPath) {
+    if (-not (Test-Path -LiteralPath $OpenSslPath -PathType Leaf)) {
+        throw "OpenSSL executable not found at: $OpenSslPath"
+    }
+    $OpenSslExe = (Resolve-Path -LiteralPath $OpenSslPath).Path
+} else {
+    $command = Get-Command openssl.exe -ErrorAction SilentlyContinue
+    if ($command) {
+        $OpenSslExe = $command.Source
+    } else {
+        $candidates = @(
+            (Join-Path $env:ProgramFiles "Git\\usr\\bin\\openssl.exe"),
+            (Join-Path $env:ProgramFiles "Git\\mingw64\\bin\\openssl.exe"),
+            (Join-Path ${env:ProgramFiles(x86)} "Git\\usr\\bin\\openssl.exe"),
+            (Join-Path $env:LOCALAPPDATA "Programs\\Git\\usr\\bin\\openssl.exe")
+        )
+        $OpenSslExe = $candidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+    }
 }
+if (-not $OpenSslExe) {
+    throw "OpenSSL not found. Pass -OpenSslPath 'C:\\path\\to\\openssl.exe' or install OpenSSL."
+}
+Write-Host "Using OpenSSL: $OpenSslExe"
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
     throw "Docker CLI not found in PATH. Install/start Docker Desktop."
 }
 New-Item -ItemType Directory -Path certs -Force | Out-Null
 if (-not (Test-Path certs/server.crt) -or -not (Test-Path certs/server.key)) {
-    & openssl req -x509 -newkey rsa:2048 -nodes -days 30 -keyout certs/server.key -out certs/server.crt -subj "/CN=mock-gateway" -addext "subjectAltName=IP:$HostIp,DNS:localhost"
+    & $OpenSslExe req -x509 -newkey rsa:2048 -nodes -days 30 -keyout certs/server.key -out certs/server.crt -subj "/CN=mock-gateway" -addext "subjectAltName=IP:$HostIp,DNS:localhost"
     if ($LASTEXITCODE -ne 0) { throw "OpenSSL failed" }
 } else {
-    & openssl x509 -in certs/server.crt -noout -ext subjectAltName
+    & $OpenSslExe x509 -in certs/server.crt -noout -ext subjectAltName
     if ($LASTEXITCODE -ne 0) { throw "Cannot inspect existing certificate" }
     Write-Warning "Reusing existing certificate. Ensure its SAN includes IP:$HostIp. Delete certs/server.crt and certs/server.key to regenerate."
 }
