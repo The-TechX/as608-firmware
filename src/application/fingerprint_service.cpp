@@ -1,20 +1,20 @@
-#include "application/fingerprint_runtime.h"
+#include "application/fingerprint_service.h"
 
 namespace {
 constexpr uint8_t kWakePin = 4;
 constexpr uint32_t kReleaseDebounceMs = 150;
 }
 
-FingerprintRuntime::FingerprintRuntime(FingerprintSensor& sensor) : sensor_(sensor) {}
+FingerprintService::FingerprintService(FingerprintSensor& sensor) : sensor_(sensor) {}
 
-void FingerprintRuntime::begin() {
+void FingerprintService::begin() {
   pinMode(kWakePin, INPUT);
   fingerWasPresent_ = digitalRead(kWakePin) == HIGH;
   armed_ = !fingerWasPresent_;
-  Serial.println("[runtime] GPIO4 wake identification enabled");
+  Serial.println("[fingerprint] GPIO4 wake identification enabled");
 }
 
-void FingerprintRuntime::identify() {
+void FingerprintService::identify() {
   busy_ = true;
   const uint32_t start = millis();
   last_ = FingerprintMatch{};
@@ -34,13 +34,13 @@ void FingerprintRuntime::identify() {
   last_.elapsedMs = millis() - start;
   last_.timestampMs = millis();
   ++eventSequence_;
-  Serial.printf("[runtime] match=%s id=%u confidence=%u error=%u elapsed=%lu ms\n",
+  Serial.printf("[fingerprint] match=%s id=%u confidence=%u error=%u elapsed=%lu ms\n",
                 last_.matched ? "yes" : "no", last_.id, last_.confidence,
                 last_.error, static_cast<unsigned long>(last_.elapsedMs));
   busy_ = false;
 }
 
-void FingerprintRuntime::tick() {
+void FingerprintService::tick() {
   const uint32_t now = millis();
   const bool present = digitalRead(kWakePin) == HIGH;
   if (!present) {
@@ -53,6 +53,6 @@ void FingerprintRuntime::tick() {
   fingerWasPresent_ = present;
 }
 
-const FingerprintMatch& FingerprintRuntime::lastResult() const { return last_; }
-bool FingerprintRuntime::busy() const { return busy_; }
-uint32_t FingerprintRuntime::eventSequence() const { return eventSequence_; }
+const FingerprintMatch& FingerprintService::lastResult() const { return last_; }
+bool FingerprintService::busy() const { return busy_; }
+uint32_t FingerprintService::eventSequence() const { return eventSequence_; }

@@ -2,8 +2,9 @@
 #include <Arduino.h>
 #include "infrastructure/wifi_manager.h"
 #include "infrastructure/fingerprint_sensor.h"
-#include "application/fingerprint_runtime.h"
+#include "application/fingerprint_service.h"
 #include "infrastructure/status_indicator.h"
+#include "application/access_service.h"
 class DeviceService {
  public:
   explicit DeviceService(WifiManager& wifi, FingerprintSensor& fingerprint);
@@ -11,14 +12,15 @@ class DeviceService {
   void scheduleReboot();
   WifiManager& wifi();
   FingerprintSensor& fingerprint();
-  FingerprintRuntime& runtime();
-  void beginRuntime();
+  FingerprintService& fingerprintService();
+  void beginServices();
+  AccessService& access();
  private:
   WifiManager& wifi_;
   FingerprintSensor& fingerprint_;
-  FingerprintRuntime runtime_;
+  FingerprintService fingerprintService_;
   StatusIndicator indicator_;
-  uint32_t lastHandledEvent_ = 0;
+  AccessService access_;
   bool rebootPending_ = false;
   uint32_t rebootAt_ = 0;
 };

@@ -12,9 +12,9 @@ struct FingerprintMatch {
   uint32_t timestampMs = 0;
 };
 
-class FingerprintRuntime {
+class FingerprintService {
  public:
-  explicit FingerprintRuntime(FingerprintSensor& sensor);
+  explicit FingerprintService(FingerprintSensor& sensor);
   void begin();
   void tick();
   const FingerprintMatch& lastResult() const;
