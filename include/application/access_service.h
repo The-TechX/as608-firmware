@@ -1,6 +1,6 @@
 #pragma once
 #include <Arduino.h>
-#include "application/fingerprint_runtime.h"
+#include "application/fingerprint_service.h"
 #include "infrastructure/status_indicator.h"
 
 // An integration may enqueue an access request without waiting for a server response.
@@ -20,12 +20,12 @@ class AccessIntegration {
 
 class AccessService {
  public:
-  AccessService(FingerprintRuntime& runtime, StatusIndicator& indicator);
+  AccessService(FingerprintService& fingerprintService, StatusIndicator& indicator);
   void begin();
   void tick();
   void setIntegration(AccessIntegration* integration);
  private:
-  FingerprintRuntime& runtime_;
+  FingerprintService& fingerprintService_;
   StatusIndicator& indicator_;
   AccessIntegration* integration_ = nullptr;
   uint32_t lastSequence_ = 0;
