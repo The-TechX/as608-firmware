@@ -16,6 +16,7 @@ void setup() {
   config.begin();
   wifi.begin();
   fingerprint.begin();
+  device.runtime().begin();
   http.begin();
 }
 void loop() {
