@@ -1,64 +1,124 @@
-# Mock WSS gateway (development only)
+# WSS authorization integration test
 
-This Docker service exposes **WSS** on TCP 8765 to the LAN, using a development TLS certificate. It simulates authorization; it is NOT Odoo and does not yet include the ESP32 WSS client.
+This is a reproducible, LAN-only integration environment for the ESP32/AS608 firmware. A Docker-hosted mock gateway makes deterministic authorization decisions over **WSS with certificate verification**. It is not Odoo or a production authorization service.
 
-## Windows PowerShell + Docker Desktop
+## Requirements
 
-Open PowerShell in `tests/integration`. Ensure Docker Desktop is running and OpenSSL is available (including from Scoop Git). Python is not required on Windows.
+- ESP32 DevKit V1 with AS608 wired and working; at least two enrolled templates (IDs 0 and 1 for the manual test)
+- PlatformIO (environment `esp32dev`), USB serial access
+- Docker Desktop or Docker Engine with Compose
+- OpenSSL (Windows: Git for Windows / Scoop Git is supported)
+- ESP32 and Docker host on a LAN where TCP 8765 is reachable
+- Internet/NTP reachability for ESP32 clock synchronization (the firmware waits for a plausible clock before TLS)
+
+**Security:** This mock intentionally accepts ID 0 and rejects ID 1; it has no authentication beyond server TLS. Never expose TCP 8765 to the public internet. Certificate and private key are generated locally, ignored by Git, and intended only for development.
+
+## Windows: clean start
+
+Open PowerShell at the repository root. Substitute your Docker host's reachable IPv4 address throughout. This example uses `192.168.1.66`.
 
 ```powershell
-# Find your LAN IPv4 (Wi-Fi or Ethernet):
-Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -like '192.168.*' -or $_.IPAddress -like '10.*' -or $_.IPAddress -like '172.*' } | Format-Table InterfaceAlias,IPAddress
+git switch feat/wss-integration-test
+git pull origin feat/wss-integration-test
 
-# Replace with the Windows host IPv4 reachable by your ESP32:
-.\start.ps1 -HostIp 192.168.1.50
+# If certificates already exist, remove BOTH files before regenerating for a new IP.
+# Only do this when deliberately rotating the test certificate.
+Remove-Item .\tests\integration\certs\server.crt, .\tests\integration\certs\server.key -ErrorAction SilentlyContinue
 
-# Run integration tests entirely inside a temporary Docker container:
+.\tests\integration\start.ps1 -HostIp 192.168.1.66
+.\scripts\configure-wss.ps1 -HostIp 192.168.1.66
+
+pio run -e esp32dev
+pio run -e esp32dev -t upload
+pio device monitor -b 115200
+```
+
+`start.ps1` changes its working directory to `tests/integration` internally, generates the test certificate if absent, and starts Docker Compose. `configure-wss.ps1` generates the **ignored local** header `include/transport/wss_local_config.h` containing the gateway IP, port and **public certificate only**. Re-run the configuration script and reflash after any certificate rotation. Do not commit generated credentials, certificates or device-specific headers.
+
+The development certificate contains `IP:<host-ip>`, `DNS:<host-ip>`, and `DNS:localhost` subject alternative names. The DNS-form IP entry is required by the mbedTLS hostname-validation behavior observed with this ESP32 toolchain; no LAN DNS or mDNS configuration is required. The server key never goes into the firmware.
+
+To find your Windows LAN address:
+
+```powershell
+Get-NetIPAddress -AddressFamily IPv4 | Format-Table InterfaceAlias,IPAddress
+```
+
+If script execution is blocked, review the script and invoke `powershell -ExecutionPolicy Bypass -File .\tests\integration\start.ps1 -HostIp 192.168.1.66`. The script can also accept `-OpenSslPath` when OpenSSL is not discoverable.
+
+## Automated gateway tests
+
+In a separate terminal:
+
+```powershell
+cd tests/integration
 docker compose run --build --rm integration-tests
 ```
 
-The script generates a self-signed development trust anchor with explicit X.509 CA, key usage, server authentication and IP SAN extensions if certificates do not already exist, then runs Docker Compose. It does not require changing the host IP in source files. If you change the IP, remove both files in `certs` before running the script again.
+The test runner executes inside Docker; no host Python installation is needed. It uses `wss://localhost:8765` and verifies the mock protocol responses. **These tests do not replace hardware-in-the-loop validation.**
 
-If PowerShell blocks script execution, run `powershell -ExecutionPolicy Bypass -File .\start.ps1 -HostIp 192.168.1.50` after reviewing the script. The script checks PATH and common Git for Windows and Scoop paths. You may specify `-OpenSslPath` if necessary.
+## Hardware-in-the-loop acceptance test
 
-If multiple interfaces are detected, the script requires an explicit `-HostIp`. It does not alter Windows Firewall; allow inbound TCP 8765 only on the private LAN if necessary.
+Keep the Docker gateway running and the ESP32 serial monitor open.
 
-## Linux/macOS
+1. Boot the ESP32. Expect Wi-Fi connected, clock synchronization, and `[wss] Connected`. No TLS bypass is used.
+2. Present enrolled fingerprint **ID 0**. Expect `[access] Authorization requested`, matching `[wss] Response ... decision=ACCEPTED`, `[access] ... result=ACCEPTED`, and the corresponding success indication.
+3. Present enrolled fingerprint **ID 1**. Expect `decision=REJECTED`, `result=REJECTED`, and no success indication.
+4. Present an unenrolled finger. Expect `[fingerprint] match=no` and **no authorization request** for that read.
+5. Repeat IDs 0 and 1; ensure each response's `request_id` matches its outstanding request.
+
+Representative successful log:
+
+```text
+[wss] Clock synchronized: ...; starting verified TLS
+[wss] Connected
+[fingerprint] match=yes id=0 ...
+[access] Authorization requested id=1 fingerprint=0
+[wss] Response id=1 decision=ACCEPTED
+[access] Authorization id=1 result=ACCEPTED
+[fingerprint] match=yes id=1 ...
+[access] Authorization requested id=2 fingerprint=1
+[wss] Response id=2 decision=REJECTED
+[access] Authorization id=2 result=REJECTED
+```
+
+## Failure-mode tests (manual hardware validation required)
+
+The access layer is designed to **fail closed** with a 3-second response timeout, one outstanding request and matching response IDs. Confirm on hardware:
+
+| Scenario | Procedure | Expected |
+| --- | --- | --- |
+| Gateway unavailable | From `tests/integration`, run `docker compose stop mock-gateway`, then present ID 0 | No access granted; disconnected/send failure or timeout |
+| Gateway restored | Run `docker compose start mock-gateway`; wait for `[wss] Connected`, then present ID 0 | New request accepted normally |
+| No response | Configure the mock to suppress the response for a fingerprint ID, or use the existing mock-only ID 999 test path | Timeout at ~3 s; no success indication |
+| Delayed response | Use the mock-only delayed ID 998 test path; ensure an old response cannot authorize a newer request | Old/nonmatching response ignored |
+| Unenrolled finger | Present a finger without a stored template | No remote authorization request |
+
+**Important:** IDs 998 and 999 are synthetic protocol test IDs, not normally enrolled AS608 fingerprints. Their behavior is exercised by the Docker integration tests; do not claim the hardware delay/timeout scenarios passed unless an actual hardware injection or test hook is run. A 2-second delay alone is below the 3-second timeout and is not sufficient to test a late response.
+
+## Linux/macOS gateway setup
 
 From `tests/integration`:
 
 ```bash
 mkdir -p certs
-HOST_IP=192.168.1.10 # replace with Docker host's reachable LAN IP
+HOST_IP=192.168.1.66 # replace with Docker host's reachable LAN IP
 openssl req -x509 -newkey rsa:2048 -nodes -days 30 \
   -keyout certs/server.key -out certs/server.crt \
   -subj "/CN=mock-gateway" \
-  -addext "subjectAltName=IP:${HOST_IP},DNS:localhost" \
+  -addext "subjectAltName=IP:${HOST_IP},DNS:${HOST_IP},DNS:localhost" \
   -addext "basicConstraints=critical,CA:TRUE" \
   -addext "keyUsage=critical,keyCertSign,cRLSign,digitalSignature,keyEncipherment" \
   -addext "extendedKeyUsage=serverAuth"
-chmod 644 certs/server.crt
-chmod 644 certs/server.key
 docker compose up --build -d
+docker compose run --build --rm integration-tests
 ```
 
-## Connection and testing
+For ESP32 firmware, generate the equivalent ignored `wss_local_config.h` with the correct host, port and PEM certificate; `configure-wss.ps1` is the provided Windows helper.
 
-Run `docker compose run --build --rm integration-tests` after the mock gateway is running. The test runner shares the gateway network namespace so `wss://localhost:8765` matches the certificate SAN. Dependencies are installed in the container image only; no Windows Python packages are installed.
+## Maintenance and cleanup
 
-The mock listens on `wss://<docker-host-LAN-IP>:8765`. The ESP32 must reach the Windows/Linux Docker host, not the container's internal IP. The server certificate must match the IP/DNS name used, and clients must explicitly trust the development certificate. The Python test trusts `certs/server.crt`; ESP32 certificate validation is not yet implemented.
-
-To test from a different machine, set `WSS_URL` and `WSS_CA_CERT` appropriately. On Windows, for example: `$env:WSS_URL = "wss://192.168.1.50:8765"`.
-
-## Deterministic responses
-
-- Fingerprint ID 0: ACCEPTED
-- Other IDs: REJECTED
-- ID 998: delayed REJECTED (2 seconds)
-- ID 999: no response (timeout)
-
-Responses echo `request_id`. This mock is for an isolated development LAN only; it has no authentication. Do not expose it to the internet or commit the certificates.
-
-## Next phase
-
-Implement ESP32 WSS client with TLS validation, request correlation, nonblocking transport, fail-closed timeout, and hardware-in-the-loop tests. No existing LED semantics are changed in this PR.
+- Certificates are valid for 30 days; regenerate **both** `server.crt` and `server.key`, regenerate the firmware header, then reflash.
+- If the Docker host IP changes, repeat the same rotation procedure.
+- Stop the environment with `docker compose down` from `tests/integration`.
+- The normal firmware does not run certificate self-test diagnostics or embed the server's private key.
+- A successful `[wss] Connected` and authorization logs demonstrate connectivity and the application flow; failure scenarios must be tested separately before production use.
