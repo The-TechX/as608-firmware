@@ -1,6 +1,6 @@
 # AS608 Firmware
 
-Minimal PlatformIO firmware for ESP32 DevKit V1. First milestone: Wi-Fi provisioning and device management, with a tiny HTML page backed by REST.
+PlatformIO firmware for ESP32 DevKit V1 and AS608 fingerprint sensor. Includes Wi-Fi provisioning, device management REST endpoints, GPIO4-triggered fingerprint identification, LED signaling, and a WSS authorization adapter. The remote gateway makes the access decision; a recognized fingerprint alone does not grant access.
 
 ## Build
 
@@ -27,4 +27,9 @@ Use the page to configure Wi-Fi, check status, reboot, or forget the network. Wh
 
 **Security:** This is a LAN-only prototype. REST operations are currently unauthenticated and served over HTTP; the recovery AP password is a shared default. Do not expose the device to the internet or an untrusted network. Authentication and secure provisioning are required before production use.
 
-AS608 driver, identification, LED signaling, and WSS transport are intentionally deferred.
+## Fingerprint authorization over WSS
+
+The AS608 identifies an enrolled fingerprint. The firmware sends an `access.request` over verified WSS and only grants access on a matching `access.response` with `ACCEPTED`. Rejection, transport failure and timeout must not grant access. TLS startup waits for SNTP time synchronization. The development gateway is a mock, not an Odoo integration.
+
+**Reproduce the gateway, certificate provisioning, firmware upload and hardware acceptance tests:** [WSS integration test guide](tests/integration/README.md). Development certificates and device-specific WSS configuration are generated locally and must not be committed.
+
