@@ -1,0 +1,8 @@
+services:
+  mock-gateway:
+    build: ./mock_gateway
+    ports:
+      - "0.0.0.0:${WSS_PORT:-8765}:8765"
+    volumes:
+      - ./certs:/certs:ro
+    restart: unless-stopped
