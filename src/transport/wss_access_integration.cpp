@@ -1,6 +1,7 @@
 #include "transport/wss_access_integration.h"
 #include <ArduinoJson.h>
 #include <WiFi.h>
+#include <time.h>
 
 WssAccessIntegration::WssAccessIntegration(const char* host, uint16_t port, const char* caCert)
     : host_(host), port_(port), caCert_(caCert) {}
@@ -10,15 +11,37 @@ void WssAccessIntegration::begin() {
     Serial.println("[wss] Disabled: missing host or CA certificate");
     return;
   }
-  socket_.beginSslWithCA(host_, port_, "/", caCert_);
-  socket_.setReconnectInterval(5000);
-  socket_.onEvent([this](WStype_t type, uint8_t* payload, size_t length) {
-    onEvent(type, payload, length);
-  });
+  Serial.println("[wss] TLS configured; waiting for valid system clock");
 }
 
 void WssAccessIntegration::tick() {
-  if (host_ && *host_ && caCert_ && *caCert_) socket_.loop();
+  if (!host_ || !*host_ || !caCert_ || !*caCert_) return;
+  if (WiFi.status() != WL_CONNECTED) return;
+  if (!clockRequested_) {
+    configTime(0, 0, "pool.ntp.org", "time.google.com");
+    clockRequested_ = true;
+    Serial.println("[wss] Requesting SNTP time");
+  }
+  time_t now = time(nullptr);
+  // Refuse TLS until the clock is plausible (2024-01-01 UTC).
+  if (now < 1704067200) {
+    if (millis() - lastClockLogMs_ >= 10000) {
+      lastClockLogMs_ = millis();
+      Serial.println("[wss] Waiting for clock synchronization");
+    }
+    return;
+  }
+  if (!socketStarted_) {
+    Serial.printf("[wss] Clock synchronized: %ld; starting verified TLS\n",
+                  static_cast<long>(now));
+    socket_.beginSslWithCA(host_, port_, "/", caCert_);
+    socket_.setReconnectInterval(5000);
+    socket_.onEvent([this](WStype_t type, uint8_t* payload, size_t length) {
+      onEvent(type, payload, length);
+    });
+    socketStarted_ = true;
+  }
+  socket_.loop();
 }
 
 bool WssAccessIntegration::submit(const AccessRequest& request) {
