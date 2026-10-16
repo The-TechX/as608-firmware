@@ -52,7 +52,7 @@ if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
 }
 New-Item -ItemType Directory -Path certs -Force | Out-Null
 if (-not (Test-Path certs/server.crt) -or -not (Test-Path certs/server.key)) {
-    & $OpenSslExe req -x509 -newkey rsa:2048 -nodes -days 30 -keyout certs/server.key -out certs/server.crt -subj "/CN=mock-gateway" -addext "subjectAltName=IP:$HostIp,DNS:localhost"
+    & $OpenSslExe req -x509 -newkey rsa:2048 -nodes -days 30 -keyout certs/server.key -out certs/server.crt -subj "/CN=mock-gateway" -addext "subjectAltName=IP:$HostIp,DNS:localhost" -addext "basicConstraints=critical,CA:TRUE" -addext "keyUsage=critical,keyCertSign,cRLSign,digitalSignature,keyEncipherment" -addext "extendedKeyUsage=serverAuth"
     if ($LASTEXITCODE -ne 0) { throw "OpenSSL failed" }
 } else {
     & $OpenSslExe x509 -in certs/server.crt -noout -ext subjectAltName
@@ -63,4 +63,4 @@ $env:WSS_PORT = "$Port"
 & docker compose up --build -d
 if ($LASTEXITCODE -ne 0) { throw "Docker Compose failed" }
 Write-Host "Mock gateway: wss://$($HostIp):$Port"
-Write-Host "Run tests: python -m unittest -v test_wss.py"
+Write-Host "Run tests: docker compose run --build --rm integration-tests"
