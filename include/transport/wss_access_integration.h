@@ -18,7 +18,9 @@ class WssAccessIntegration : public AccessIntegration {
   uint16_t port_;
   const char* caCert_;
   bool connected_ = false;
-  bool queued_ = false;
+  bool clockRequested_ = false;
+  bool socketStarted_ = false;
+  uint32_t lastClockLogMs_ = 0;
   AccessDecision received_;
   bool hasReceived_ = false;
 };
