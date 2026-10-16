@@ -6,3 +6,17 @@ services:
     volumes:
       - ./certs:/certs:ro
     restart: unless-stopped
+
+  integration-tests:
+    build: ./mock_gateway
+    profiles: ["test"]
+    depends_on:
+      - mock-gateway
+    working_dir: /tests
+    volumes:
+      - ./test_wss.py:/tests/test_wss.py:ro
+      - ./certs:/tests/certs:ro
+    environment:
+      WSS_URL: wss://mock-gateway:8765
+      WSS_CA_CERT: certs/server.crt
+    command: ["python", "-m", "unittest", "-v", "test_wss.py"]
