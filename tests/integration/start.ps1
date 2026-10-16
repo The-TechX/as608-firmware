@@ -52,12 +52,12 @@ if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
 }
 New-Item -ItemType Directory -Path certs -Force | Out-Null
 if (-not (Test-Path certs/server.crt) -or -not (Test-Path certs/server.key)) {
-    & $OpenSslExe req -x509 -newkey rsa:2048 -nodes -days 30 -keyout certs/server.key -out certs/server.crt -subj "/CN=mock-gateway" -addext "subjectAltName=IP:$HostIp,DNS:localhost" -addext "basicConstraints=critical,CA:TRUE" -addext "keyUsage=critical,keyCertSign,cRLSign,digitalSignature,keyEncipherment" -addext "extendedKeyUsage=serverAuth"
+    & $OpenSslExe req -x509 -newkey rsa:2048 -nodes -days 30 -keyout certs/server.key -out certs/server.crt -subj "/CN=mock-gateway" -addext "subjectAltName=IP:$HostIp,DNS:$HostIp,DNS:localhost" -addext "basicConstraints=critical,CA:TRUE" -addext "keyUsage=critical,keyCertSign,cRLSign,digitalSignature,keyEncipherment" -addext "extendedKeyUsage=serverAuth"
     if ($LASTEXITCODE -ne 0) { throw "OpenSSL failed" }
 } else {
     & $OpenSslExe x509 -in certs/server.crt -noout -ext subjectAltName
     if ($LASTEXITCODE -ne 0) { throw "Cannot inspect existing certificate" }
-    Write-Warning "Reusing existing certificate. Ensure its SAN includes IP:$HostIp. Delete certs/server.crt and certs/server.key to regenerate."
+    Write-Warning "Reusing existing certificate. Ensure its SAN includes both IP:$HostIp and DNS:$HostIp. Delete certs/server.crt and certs/server.key to regenerate."
 }
 $env:WSS_PORT = "$Port"
 & docker compose up --build -d
