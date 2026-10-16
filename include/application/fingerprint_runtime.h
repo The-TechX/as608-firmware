@@ -19,16 +19,14 @@ class FingerprintRuntime {
   void tick();
   const FingerprintMatch& lastResult() const;
   bool busy() const;
+  uint32_t eventSequence() const;
  private:
-  enum class LedState { Idle, Success, Failure };
   void identify();
-  void updateLed(uint32_t now);
   FingerprintSensor& sensor_;
   FingerprintMatch last_;
-  LedState led_ = LedState::Idle;
-  uint32_t ledStarted_ = 0;
   bool armed_ = true;
   bool fingerWasPresent_ = false;
   uint32_t releasedSince_ = 0;
   bool busy_ = false;
+  uint32_t eventSequence_ = 0;
 };
