@@ -2,6 +2,7 @@
 #include <Arduino.h>
 #include <DNSServer.h>
 #include "infrastructure/config_store.h"
+
 class WifiManager {
  public:
   explicit WifiManager(ConfigStore& store);
@@ -16,13 +17,18 @@ class WifiManager {
   bool configured() const;
   bool apActive() const;
  private:
+  enum class State { Unconfigured, Connecting, Connected, Recovery };
   void startAp();
+  void stopAp();
   void connect();
+  void setConnected();
   ConfigStore& store_;
   DNSServer dns_;
   String ssid_;
   String password_;
+  State state_ = State::Unconfigured;
   bool apActive_ = false;
-  bool connecting_ = false;
-  uint32_t started_ = 0;
+  uint32_t attemptStarted_ = 0;
+  uint32_t outageStarted_ = 0;
+  uint32_t lastAttempt_ = 0;
 };
